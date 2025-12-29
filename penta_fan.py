@@ -11,8 +11,8 @@ import lgpio
 # -------------------------------------------------------
 # CONFIG
 # -------------------------------------------------------
-CHIP = 0               # gpiochip0 — Radxa HAT works through this
-LINE = 27              # Radxa Penta SATA HAT fan pin
+CHIP = 4               # gpiochip0 — Radxa HAT works through this
+LINE = 15              # Radxa Penta SATA HAT fan pin
 CHECK_INTERVAL = 2.0   # seconds between temp checks
 HYST = 2.0             # hysteresis (°C)
 
