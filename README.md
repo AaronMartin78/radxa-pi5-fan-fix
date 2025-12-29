@@ -17,20 +17,17 @@ Replace Radxa's fan control with a custom script using `lgpio`, the official Pi 
 ## Installation
 
 ### 1. Install lgpio
-
 ```bash
 sudo apt install python3-lgpio
 ```
 
 ### 2. Install the fan control script
-
 ```bash
 sudo cp penta_fan.py /usr/local/bin/
 sudo chmod +x /usr/local/bin/penta_fan.py
 ```
 
 ### 3. Install and enable the systemd service
-
 ```bash
 sudo cp penta-fan.service /etc/systemd/system/
 sudo systemctl daemon-reload
@@ -38,7 +35,6 @@ sudo systemctl enable --now penta-fan.service
 ```
 
 ### 4. Verify
-
 ```bash
 systemctl status penta-fan.service
 ```
@@ -48,7 +44,6 @@ The fan should now run quietly and spin up only when CPU temperature rises.
 ## Configuration
 
 Edit `/usr/local/bin/penta_fan.py` to adjust the fan curve:
-
 ```python
 def temp_to_duty(t):
     if t < 55:
@@ -67,10 +62,9 @@ def temp_to_duty(t):
         return 100    # full power
 ```
 
-Note: The Radxa HAT fan pin is binary (on/off), not true PWM. The fan turns on when duty exceeds 50%.
+The script uses hardware PWM at 25 kHz for smooth, quiet fan speed control.
 
 Restart after changes:
-
 ```bash
 sudo systemctl restart penta-fan.service
 ```
@@ -83,7 +77,7 @@ If you want the OLED to work alongside this fix, see [OLED.md](OLED.md).
 
 Tested with:
 - Raspberry Pi 5 (8 GB)
-- Radxa Penta SATA HAT (fan on BCM GPIO 27)
+- Radxa Penta SATA HAT (fan on gpiochip4, line 15)
 - Raspberry Pi OS (64-bit), kernel 6.12
 
 ## License
