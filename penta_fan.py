@@ -73,9 +73,11 @@ def apply_hysteresis(t, target, last):
             return last
 
 
-def set_fan(line_handle, duty):
-    """Binary on/off control based on threshold (not true PWM)."""
-    lgpio.gpio_write(line_handle, LINE, 1 if duty > 50 else 0)
+PWM_FREQ = 25000  # 25 kHz — standard for 4-pin PWM fans
+
+def set_fan(handle, duty):
+    """Set fan speed via hardware PWM."""
+    lgpio.tx_pwm(handle, LINE, PWM_FREQ, duty)
 
 
 # -------------------------------------------------------
