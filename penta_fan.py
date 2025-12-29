@@ -1,105 +1,94 @@
 #!/usr/bin/env python3
-"""
-Temperature-based fan controller for Radxa Penta SATA HAT on Raspberry Pi 5.
-Uses lgpio (Pi 5's official GPIO library) instead of the deprecated gpiod v1 API.
-"""
-
 import time
-import subprocess
 import lgpio
 
 # -------------------------------------------------------
 # CONFIG
 # -------------------------------------------------------
-CHIP = 4               # gpiochip0 — Radxa HAT works through this
-LINE = 15              # Radxa Penta SATA HAT fan pin
-CHECK_INTERVAL = 2.0   # seconds between temp checks
-HYST = 2.0             # hysteresis (°C)
+
+# These are confirmed working for your Radxa Penta SATA HAT fan on Pi 5
+CHIP = 0               # gpiochip0
+LINE = 27              # fan control pin
+
+PWM_FREQ = 100         # 100 Hz; higher values caused 'bad PWM frequency' before
+CHECK_INTERVAL = 2.0   # seconds between temperature checks
+
+
+# -------------------------------------------------------
+# HELPERS
+# -------------------------------------------------------
+
+def get_cpu_temp():
+    """Read CPU temperature in °C from the kernel."""
+    with open("/sys/class/thermal/thermal_zone0/temp") as f:
+        return int(f.read().strip()) / 1000.0
 
 
 def temp_to_duty(t):
-    """Quiet fan curve — stays silent until 55°C."""
-    if t < 55:
-        return 0      # silent
+    """
+    Map temperature (°C) to fan duty (%).
+
+    This curve starts the fan early so it's easy to SEE/HEAR that it's working.
+    You can tune the thresholds and duty steps later if you want it quieter.
+    """
+    if t < 45:
+        return 0        # cold: off
+    elif t < 50:
+        return 30       # gentle
+    elif t < 55:
+        return 45
     elif t < 60:
-        return 20     # whisper
-    elif t < 65:
-        return 35     # low
-    elif t < 70:
-        return 50     # medium-low
-    elif t < 75:
-        return 65     # medium
-    elif t < 85:
-        return 80     # high
+        return 70
     else:
-        return 100    # full power for protection
+        return 100      # hot: full blast
 
-
-# -------------------------------------------------------
-# Helpers
-# -------------------------------------------------------
-def get_cpu_temp():
-    """Returns CPU temperature in °C as float."""
-    try:
-        out = subprocess.check_output(
-            ["vcgencmd", "measure_temp"]
-        ).decode()
-        return float(out.replace("temp=", "").replace("'C", ""))
-    except Exception:
-        # Fallback to thermal zone
-        try:
-            with open("/sys/class/thermal/thermal_zone0/temp") as f:
-                return float(f.read().strip()) / 1000.0
-        except:
-            return 0.0
-
-
-def temp_threshold_for_duty(duty):
-    """Return the temperature that triggers this duty level."""
-    thresholds = {0: 0, 20: 55, 35: 60, 50: 65, 65: 70, 80: 75, 100: 85}
-    return thresholds.get(duty, 0)
-
-
-def apply_hysteresis(t, target, last):
-    """Prevents rapid bouncing between duty levels."""
-    if target >= last:
-        return target  # heating up: respond immediately
-    else:
-        # cooling down: only decrease if temp is HYST below current threshold
-        threshold = temp_threshold_for_duty(last)
-        if t < threshold - HYST:
-            return target
-        else:
-            return last
-
-
-PWM_FREQ = 25000  # 25 kHz — standard for 4-pin PWM fans
 
 def set_fan(handle, duty):
-    """Set fan speed via hardware PWM."""
-    lgpio.tx_pwm(handle, LINE, PWM_FREQ, duty)
+    """
+    Set fan speed via hardware PWM.
+
+    - duty is clamped to 0–100.
+    - duty == 0: stop PWM and pull the line low so the fan actually stops.
+    - duty > 0: normal PWM control at PWM_FREQ.
+    """
+    duty = max(0, min(100, int(duty)))  # clamp and normalise
+
+    if duty == 0:
+        # 0% duty: explicitly stop PWM and pull the line low
+        lgpio.tx_pwm(handle, LINE, PWM_FREQ, 0)
+        lgpio.gpio_write(handle, LINE, 0)
+    else:
+        lgpio.tx_pwm(handle, LINE, PWM_FREQ, duty)
 
 
 # -------------------------------------------------------
-# Main loop
+# MAIN LOOP
 # -------------------------------------------------------
+
 def main():
-    last_duty = 0
     h = lgpio.gpiochip_open(CHIP)
     lgpio.gpio_claim_output(h, LINE)
+    last_duty = None
 
     try:
         while True:
             temp = get_cpu_temp()
-            target = temp_to_duty(temp)
-            duty = apply_hysteresis(temp, target, last_duty)
-            last_duty = duty
+            duty = temp_to_duty(temp)
 
-            set_fan(h, duty)
+            # Always log temp + duty so behaviour is visible in journalctl
             print(f"penta-fan: Temp={temp:.1f}°C, duty={duty}%")
+
+            if duty != last_duty:
+                set_fan(h, duty)
+                last_duty = duty
+
             time.sleep(CHECK_INTERVAL)
     finally:
-        lgpio.gpio_write(h, LINE, 0)
+        # On exit (Ctrl+C, systemd stop), make sure the fan is turned off
+        try:
+            set_fan(h, 0)
+        except Exception:
+            lgpio.gpio_write(h, LINE, 0)
         lgpio.gpiochip_close(h)
 
 

@@ -1,10 +1,13 @@
 [Unit]
-Description=Fan controller for Radxa Penta SATA HAT on Pi 5
+Description=Quiet Fan Controller for Radxa HAT on Pi5
 After=multi-user.target
 
 [Service]
+Type=simple
 ExecStart=/usr/bin/python3 /usr/local/bin/penta_fan.py
 Restart=always
+KillSignal=SIGINT
+usser=root
 
 [Install]
 WantedBy=multi-user.target
