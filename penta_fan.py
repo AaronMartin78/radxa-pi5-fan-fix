@@ -11,8 +11,8 @@ import lgpio
 # -------------------------------------------------------
 # CONFIG
 # -------------------------------------------------------
-CHIP = 0               # gpiochip0 — Radxa HAT works through this
-LINE = 27              # Radxa Penta SATA HAT fan pin
+CHIP = 4               # gpiochip0 — Radxa HAT works through this
+LINE = 15              # Radxa Penta SATA HAT fan pin
 CHECK_INTERVAL = 2.0   # seconds between temp checks
 HYST = 2.0             # hysteresis (°C)
 
@@ -54,12 +54,20 @@ def get_cpu_temp():
             return 0.0
 
 
+def temp_threshold_for_duty(duty):
+    """Return the temperature that triggers this duty level."""
+    thresholds = {0: 0, 20: 55, 35: 60, 50: 65, 65: 70, 80: 75, 100: 85}
+    return thresholds.get(duty, 0)
+
+
 def apply_hysteresis(t, target, last):
     """Prevents rapid bouncing between duty levels."""
-    if target > last:
-        return target
+    if target >= last:
+        return target  # heating up: respond immediately
     else:
-        if t < (t - HYST):
+        # cooling down: only decrease if temp is HYST below current threshold
+        threshold = temp_threshold_for_duty(last)
+        if t < threshold - HYST:
             return target
         else:
             return last
