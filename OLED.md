@@ -40,13 +40,32 @@ def watch_key(pattern=None, size=None, q=None):
     return
 ```
 
-### 3. Restart the service
+### 3. Fix main.py to keep service alive
+
+Edit `/usr/bin/rockpi-penta/main.py` and find:
+```python
+        #p3.start()
+        try:
+            pass
+            #p3.join()
+```
+
+Replace with:
+```python
+        #p3.start()
+        try:
+            p2.join()  # Block on OLED thread
+```
+
+Without this, the daemon threads exit immediately and the service dies after ~8 seconds.
+
+### 4. Restart the service
 
 ```bash
 sudo systemctl restart rockpi-penta.service
 ```
 
-### 4. Verify I2C
+### 5. Verify I2C
 
 The OLED should appear at address `0x3c`:
 
