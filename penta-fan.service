@@ -4,10 +4,10 @@ After=multi-user.target
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/python3 /usr/local/bin/penta_fan.py
+ExecStart=/usr/bin/python3 -u /usr/local/bin/penta_fan.py
 Restart=always
 KillSignal=SIGINT
-usser=root
+User=root
 
 [Install]
 WantedBy=multi-user.target
